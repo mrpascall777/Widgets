@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>75 Day Challenge</title>
+<style>
+:root{
+  --bg: transparent;
+  --fg: #111;
+  --accent: #2E7D32;
+  --warn: #E67E22;
+  --font: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji","Segoe UI Emoji";
+}
+html,body{height:100%;margin:0;background:var(--bg);color:var(--fg);font-family:var(--font);overflow:hidden}
+.wrap{display:grid;place-items:center;height:100%;width:100%;padding:6vmin;box-sizing:border-box}
+.card{display:grid;gap:.7em;place-items:center;text-align:center;max-width:680px}
+.title{font-weight:800;font-size:clamp(14px,4.5vmin,24px)}
+.day{font-weight:900;font-size:clamp(28px,12vmin,80px);line-height:1;color:var(--accent)}
+.progress{width:min(92vmin,680px);height:14px;background:#e7f2e9;border-radius:999px;overflow:hidden}
+.bar{height:100%;background:var(--accent);width:0%}
+.meta{font-size:clamp(10px,3vmin,14px);opacity:.85}
+.btnrow{display:flex;gap:.5rem;flex-wrap:wrap;justify-content:center}
+button{border:0;padding:.6rem .9rem;border-radius:12px;cursor:pointer;font-weight:600;background:#ddd}
+button.primary{background:var(--accent);color:#fff}
+.grid{display:grid;grid-template-columns:repeat(15, 1fr);gap:4px}
+.dot{width:10px;height:10px;border-radius:50%;background:#cfe3d4}
+.dot.done{background:var(--accent)}
+.dot.today{outline:2px solid var(--warn)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="card">
+    <div class="title" id="title">75 Day Challenge</div>
+    <div class="day" id="dayText">Day 1 of 75</div>
+    <div class="progress"><div class="bar" id="bar"></div></div>
+    <div class="grid" id="grid"></div>
+    <div class="btnrow">
+      <button class="primary" id="mark">Mark Today Complete</button>
+      <button id="unmark">Unmark Today</button>
+      <button id="reset">Reset All</button>
+    </div>
+    <div class="meta" id="meta"></div>
+  </div>
+</div>
+<script>
+(function(){
+  const qs = new URLSearchParams(location.search);
+  const title = qs.get("title") || "75 Day Challenge";
+  const start = qs.get("start"); // e.g., 2025-09-01
+  const accent = qs.get("accent"); if (accent) document.documentElement.style.setProperty("--accent", accent);
+  const fg = qs.get("fg"); if (fg) document.documentElement.style.setProperty("--fg", fg);
+  const bg = qs.get("bg"); if (bg) document.documentElement.style.setProperty("--bg", bg);
+  const KEY = "seventy_five_tracker_v1";
+
+  document.getElementById("title").textContent = title;
+
+  if (!start){
+    document.getElementById("meta").textContent = "Set ?start=YYYY-MM-DD";
+    return;
+  }
+  const startDate = new Date(start+"T00:00:00");
+
+  function dateKey(d){ return d.toISOString().slice(0,10); }
+  function todayKey(){ return dateKey(new Date()); }
+
+  function daysSinceStart(d){
+    const ms = new Date(dateKey(d)+"T00:00:00").getTime() - startDate.getTime();
+    return Math.floor(ms/(1000*60*60*24));
+  }
+  function dayNumber(d){ return daysSinceStart(d) + 1; }
+
+  function load(){
+    try{
+      const obj = JSON.parse(localStorage.getItem(KEY))||{};
+      if (obj.start === start) return obj;
+      return { start, completed: {} };
+    }catch(e){ return { start, completed: {} }; }
+  }
+  function save(obj){ localStorage.setItem(KEY, JSON.stringify(obj)); }
+
+  let store = load();
+
+  const dayText = document.getElementById("dayText");
+  const bar = document.getElementById("bar");
+  const grid = document.getElementById("grid");
+  const meta = document.getElementById("meta");
+
+  const dots = [];
+  for (let i=0;i<75;i++){
+    const dot = document.createElement("div");
+    dot.className = "dot";
+    dots.push(dot);
+    grid.appendChild(dot);
+  }
+
+  function render(){
+    const today = new Date();
+    const n = Math.min(75, Math.max(1, dayNumber(today)));
+    dayText.textContent = `Day ${n} of 75`;
+    const completedCount = Object.keys(store.completed).length;
+    const pct = Math.round(100 * completedCount / 75);
+    bar.style.width = pct + "%";
+
+    dots.forEach((d,i)=>{
+      const theDay = new Date(startDate.getTime() + i*86400000);
+      const key = theDay.toISOString().slice(0,10);
+      d.className = "dot" + (store.completed[key] ? " done" : "") + (i===n-1 ? " today" : "");
+    });
+    meta.textContent = `Completed ${completedCount}/75 • Start ${startDate.toDateString()}`;
+  }
+
+  document.getElementById("mark").addEventListener("click", ()=>{
+    const today = new Date();
+    const n = dayNumber(today);
+    if (n<1 || n>75) return;
+    const key = new Date(startDate.getTime() + (n-1)*86400000).toISOString().slice(0,10);
+    store.completed[key] = true; save(store); render();
+  });
+  document.getElementById("unmark").addEventListener("click", ()=>{
+    const today = new Date();
+    const n = dayNumber(today);
+    const key = new Date(startDate.getTime() + (n-1)*86400000).toISOString().slice(0,10);
+    delete store.completed[key]; save(store); render();
+  });
+  document.getElementById("reset").addEventListener("click", ()=>{
+    if (confirm("Reset all 75 days?")){ store = { start, completed: {} }; save(store); render(); }
+  });
+
+  render();
+})();
+</script>
+</body>
+</html>

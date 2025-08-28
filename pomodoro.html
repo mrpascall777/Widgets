@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Pomodoro Widget</title>
+<style>
+:root{
+  --bg: transparent;
+  --fg: #111;
+  --accent: #E53935;
+  --ok: #2E7D32;
+  --font: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji","Segoe UI Emoji";
+}
+html,body{height:100%;margin:0;background:var(--bg);color:var(--fg);font-family:var(--font);overflow:hidden}
+.wrap{display:grid;place-items:center;height:100%;width:100%;padding:6vmin;box-sizing:border-box}
+.card{display:grid;gap:.8em;place-items:center;text-align:center;max-width:560px}
+.title{font-weight:700;font-size:clamp(14px,4.5vmin,22px)}
+.time{font-weight:800;font-size:clamp(36px,16vmin,96px);line-height:1;letter-spacing:.03em}
+.state{font-size:clamp(11px,3.5vmin,16px);opacity:.9}
+.btnrow{display:flex;gap:.6rem;flex-wrap:wrap;justify-content:center}
+button{border:0;padding:.6rem .9rem;border-radius:12px;cursor:pointer;font-weight:600}
+.start{background:var(--accent);color:#fff}
+.pause{background:#555;color:#fff}
+.reset{background:#ddd}
+.config{font-size:clamp(10px,3vmin,14px);opacity:.8}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="card">
+    <div class="title" id="title">Pomodoro</div>
+    <div class="time" id="clock">25:00</div>
+    <div class="state" id="state">Focus</div>
+    <div class="btnrow">
+      <button class="start" id="startBtn">Start</button>
+      <button class="pause" id="pauseBtn">Pause</button>
+      <button class="reset" id="resetBtn">Reset</button>
+    </div>
+    <div class="config" id="config"></div>
+  </div>
+</div>
+<script>
+(function(){
+  const qs = new URLSearchParams(location.search);
+  const title = qs.get("title") || "Pomodoro";
+  const focusMin = parseInt(qs.get("focus")||"25",10);
+  const shortMin = parseInt(qs.get("short")||"5",10);
+  const longMin = parseInt(qs.get("long")||"15",10);
+  const cycles = parseInt(qs.get("cycles")||"4",10);
+  const accent = qs.get("accent"); if (accent) document.documentElement.style.setProperty("--accent", accent);
+  const fg = qs.get("fg"); if (fg) document.documentElement.style.setProperty("--fg", fg);
+  const bg = qs.get("bg"); if (bg) document.documentElement.style.setProperty("--bg", bg);
+
+  const titleEl = document.getElementById("title");
+  const clockEl = document.getElementById("clock");
+  const stateEl = document.getElementById("state");
+  const cfgEl = document.getElementById("config");
+  titleEl.textContent = title;
+  cfgEl.textContent = `Focus ${focusMin}m • Short ${shortMin}m • Long ${longMin}m • Long after ${cycles} cycles`;
+
+  const KEY = "pomodoro_state_v1";
+  let state = {
+    mode: "focus",
+    endsAt: null,
+    paused: true,
+    remaining: focusMin*60,
+    completedFocus: 0
+  };
+
+  function save(){ localStorage.setItem(KEY, JSON.stringify(state)); }
+  function load(){
+    try{
+      const s = JSON.parse(localStorage.getItem(KEY));
+      if (s && typeof s === "object") state = Object.assign(state, s);
+    }catch(e){}
+  }
+  load();
+
+  function secsFor(mode){
+    if (mode==="focus") return focusMin*60;
+    if (mode==="short") return shortMin*60;
+    if (mode==="long")  return longMin*60;
+    return focusMin*60;
+  }
+
+  function scheduleNext(mode){
+    if (mode==="focus"){
+      const next = (state.completedFocus+1) % cycles === 0 ? "long" : "short";
+      return next;
+    }
+    return "focus";
+  }
+
+  function fmt(sec){
+    sec = Math.max(0, Math.floor(sec));
+    const m = Math.floor(sec/60), s = sec%60;
+    return (""+m).padStart(2,"0")+":"+(""+s).padStart(2,"0");
+  }
+
+  function setMode(mode, fresh=true){
+    state.mode = mode;
+    state.paused = true;
+    state.remaining = fresh ? secsFor(mode) : state.remaining;
+    state.endsAt = null;
+    stateEl.textContent = mode==="focus" ? "Focus" : (mode==="short" ? "Short Break" : "Long Break");
+    clockEl.textContent = fmt(state.remaining);
+    save();
+  }
+
+  function start(){
+    if (!state.paused) return;
+    state.paused = false;
+    state.endsAt = Date.now() + state.remaining*1000;
+    save();
+    tick();
+  }
+  function pause(){
+    if (state.paused) return;
+    state.paused = true;
+    state.remaining = Math.max(0, Math.round((state.endsAt - Date.now())/1000));
+    state.endsAt = null;
+    save();
+    render();
+  }
+  function reset(){
+    setMode(state.mode, true);
+  }
+
+  function nextPhase(){
+    if (state.mode==="focus") state.completedFocus++;
+    const nxt = scheduleNext(state.mode);
+    setMode(nxt, true);
+    start();
+  }
+
+  function render(){
+    if (!state.paused && state.endsAt){
+      const left = Math.max(0, Math.round((state.endsAt - Date.now())/1000));
+      state.remaining = left;
+      clockEl.textContent = fmt(left);
+      if (left<=0){
+        try {
+          const ctx = new (window.AudioContext||window.webkitAudioContext)();
+          const o = ctx.createOscillator(); const g = ctx.createGain();
+          o.connect(g); g.connect(ctx.destination);
+          o.frequency.value = 880; g.gain.value = 0.05;
+          o.start(); setTimeout(()=>{o.stop();ctx.close();}, 600);
+        } catch(e){}
+        nextPhase();
+        return;
+      }
+    } else {
+      clockEl.textContent = fmt(state.remaining);
+    }
+    stateEl.textContent = (state.mode==="focus"?"Focus":state.mode==="short"?"Short Break":"Long Break") + 
+      (state.mode==="focus"?` • Completed: ${state.completedFocus}`:"");
+  }
+
+  function tick(){
+    render();
+    requestAnimationFrame(()=>setTimeout(tick, 200));
+  }
+
+  setMode(state.mode, false);
+  if (!state.paused && state.endsAt && state.endsAt>Date.now()) tick(); else render();
+
+  document.getElementById("startBtn").addEventListener("click", start);
+  document.getElementById("pauseBtn").addEventListener("click", pause);
+  document.getElementById("resetBtn").addEventListener("click", reset);
+})();
+</script>
+</body>
+</html>

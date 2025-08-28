@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Countdown Widget</title>
+<style>
+:root{
+  --bg: transparent;
+  --fg: #111;
+  --accent: #1E88E5;
+  --font: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji","Segoe UI Emoji";
+}
+html,body{height:100%;margin:0;background:var(--bg);color:var(--fg);font-family:var(--font);overflow:hidden}
+.wrap{display:grid;place-items:center;height:100%;width:100%;padding:6vmin;box-sizing:border-box}
+.card{display:grid;gap:.6em;place-items:center;text-align:center}
+.title{font-weight:700;font-size:clamp(14px,4.5vmin,24px);opacity:.9}
+.time{display:flex;gap:1ch;align-items:baseline;justify-content:center;flex-wrap:wrap}
+.blk{display:grid;justify-items:center}
+.num{font-weight:800;font-size:clamp(28px,12vmin,80px);line-height:1}
+.lab{font-size:clamp(10px,3.5vmin,16px);opacity:.8;text-transform:uppercase;letter-spacing:.08em}
+.footer{font-size:clamp(10px,3vmin,14px);opacity:.75}
+.accent{color:var(--accent)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="card">
+    <div class="title" id="title"></div>
+    <div class="time" id="time">
+      <div class="blk"><div class="num" id="d">0</div><div class="lab">Days</div></div>
+      <div class="blk"><div class="num" id="h">00</div><div class="lab">Hours</div></div>
+      <div class="blk"><div class="num" id="m">00</div><div class="lab">Minutes</div></div>
+      <div class="blk"><div class="num accent" id="s">00</div><div class="lab">Seconds</div></div>
+    </div>
+    <div class="footer" id="footer"></div>
+  </div>
+</div>
+<script>
+(function(){
+  const qs = new URLSearchParams(location.search);
+  const title = qs.get("title") || "Countdown";
+  const target = qs.get("target"); // ISO like 2025-12-31T17:30:00 or date-only
+  const tz = qs.get("tz") || Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+  const accent = qs.get("accent"); if (accent) document.documentElement.style.setProperty("--accent", accent);
+  const fg = qs.get("fg"); if (fg) document.documentElement.style.setProperty("--fg", fg);
+  const bg = qs.get("bg"); if (bg) document.documentElement.style.setProperty("--bg", bg);
+
+  document.getElementById("title").textContent = title;
+
+  function parseInTZ(isoLike){
+    const d = isoLike ? new Date(isoLike) : null;
+    return d;
+  }
+
+  const targetDate = parseInTZ(target);
+  if(!targetDate || isNaN(targetDate)){
+    document.getElementById("footer").textContent = "Set ?target=YYYY-MM-DD or YYYY-MM-DDTHH:MM";
+    return;
+  }
+
+  const fmt = new Intl.DateTimeFormat(undefined, {dateStyle:"full", timeStyle:"short", timeZone: tz});
+  const footer = document.getElementById("footer");
+  footer.textContent = "Target: " + fmt.format(targetDate);
+
+  const dEl = document.getElementById("d");
+  const hEl = document.getElementById("h");
+  const mEl = document.getElementById("m");
+  const sEl = document.getElementById("s");
+
+  function pad(n){return n<10?"0"+n:n}
+  function tick(){
+    const now = new Date();
+    let diff = targetDate.getTime() - now.getTime();
+    if (diff <= 0){
+      dEl.textContent = "0"; hEl.textContent="00"; mEl.textContent="00"; sEl.textContent="00";
+      document.getElementById("title").textContent = title + " — Done!";
+      return;
+    }
+    const sec = Math.floor(diff/1000);
+    const d = Math.floor(sec/86400);
+    const h = Math.floor((sec%86400)/3600);
+    const m = Math.floor((sec%3600)/60);
+    const s = Math.floor(sec%60);
+    dEl.textContent = d;
+    hEl.textContent = pad(h);
+    mEl.textContent = pad(m);
+    sEl.textContent = pad(s);
+    requestAnimationFrame(()=>setTimeout(tick, 1000 - (Date.now()%1000)));
+  }
+  tick();
+})();
+</script>
+</body>
+</html>

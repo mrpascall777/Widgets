@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Water Tracker</title>
+<style>
+:root{
+  --bg: transparent;
+  --fg: #111;
+  --accent: #3BAFDA;
+  --font: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji","Segoe UI Emoji";
+}
+html,body{height:100%;margin:0;background:var(--bg);color:var(--fg);font-family:var(--font);overflow:hidden}
+.wrap{display:grid;place-items:center;height:100%;width:100%;padding:6vmin;box-sizing:border-box}
+.card{display:grid;gap:.6em;place-items:center;text-align:center;max-width:560px}
+.title{font-weight:700;font-size:clamp(14px,4.5vmin,22px)}
+.counter{font-weight:800;font-size:clamp(28px,12vmin,80px);line-height:1;color:var(--accent)}
+.progress{width:min(92vmin,560px);height:14px;background:#e7eef3;border-radius:999px;overflow:hidden}
+.bar{height:100%;background:var(--accent);width:0%}
+.btnrow{display:flex;gap:.5rem;flex-wrap:wrap;justify-content:center}
+button{border:0;padding:.6rem .9rem;border-radius:12px;cursor:pointer;font-weight:600;background:#ddd}
+button.primary{background:var(--accent);color:#fff}
+.meta{font-size:clamp(10px,3vmin,14px);opacity:.85}
+.drops{display:flex;gap:.35rem;flex-wrap:wrap;justify-content:center}
+.drop{width:12px;height:16px;border-radius:8px 8px 12px 12px;background:#cfeaf4;position:relative;overflow:hidden}
+.drop.filled{background:var(--accent)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="card">
+    <div class="title" id="title">Water</div>
+    <div class="counter"><span id="count">0</span><span id="unit"></span></div>
+    <div class="progress"><div class="bar" id="bar"></div></div>
+    <div class="drops" id="drops"></div>
+    <div class="btnrow">
+      <button id="minus">−</button>
+      <button class="primary" id="plus">+ Add</button>
+      <button id="reset">Reset</button>
+    </div>
+    <div class="meta" id="meta"></div>
+  </div>
+</div>
+<script>
+(function(){
+  const qs = new URLSearchParams(location.search);
+  const title = qs.get("title") || "Water";
+  const goalMl = parseInt(qs.get("goal_ml")||"2000",10);
+  const cupMl  = parseInt(qs.get("cup_ml")||"250",10);
+  const unitPref = (qs.get("unit")||"ml").toLowerCase();
+  const accent = qs.get("accent"); if (accent) document.documentElement.style.setProperty("--accent", accent);
+  const fg = qs.get("fg"); if (fg) document.documentElement.style.setProperty("--fg", fg);
+  const bg = qs.get("bg"); if (bg) document.documentElement.style.setProperty("--bg", bg);
+  const key = "water_tracker_v1";
+
+  document.getElementById("title").textContent = title;
+  document.getElementById("unit").textContent = unitPref==="cups" ? " cups" : " ml";
+
+  function todayKey(){
+    const d = new Date();
+    return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
+  }
+
+  function load(){
+    try{
+      const obj = JSON.parse(localStorage.getItem(key))||{};
+      const t = todayKey();
+      return obj[t]||0;
+    }catch(e){return 0;}
+  }
+  function save(value){
+    const t = todayKey();
+    let obj = {}; try{obj = JSON.parse(localStorage.getItem(key))||{}}catch(e){}
+    obj[t]=value; localStorage.setItem(key, JSON.stringify(obj));
+  }
+
+  let totalMl = load();
+
+  const countEl = document.getElementById("count");
+  const barEl = document.getElementById("bar");
+  const dropsEl = document.getElementById("drops");
+  const metaEl = document.getElementById("meta");
+
+  function renderDrops(){
+    dropsEl.innerHTML = "";
+    const cups = Math.round(goalMl / cupMl);
+    for (let i=0;i<cups;i++){
+      const d = document.createElement("div");
+      d.className = "drop" + ( (i+1)*cupMl <= totalMl ? " filled" : "" );
+      dropsEl.appendChild(d);
+    }
+  }
+
+  function render(){
+    const val = unitPref==="cups" ? (totalMl / cupMl) : totalMl;
+    countEl.textContent = unitPref==="cups" ? Math.round(val) : Math.round(val);
+    const pct = Math.min(100, Math.round(100*totalMl/goalMl));
+    barEl.style.width = pct+"%";
+    metaEl.textContent = `${totalMl} ml / ${goalMl} ml • cup = ${cupMl} ml`;
+    renderDrops();
+  }
+
+  document.getElementById("plus").addEventListener("click", ()=>{ totalMl = Math.max(0, totalMl + cupMl); save(totalMl); render(); });
+  document.getElementById("minus").addEventListener("click", ()=>{ totalMl = Math.max(0, totalMl - cupMl); save(totalMl); render(); });
+  document.getElementById("reset").addEventListener("click", ()=>{ totalMl = 0; save(totalMl); render(); });
+
+  render();
+})();
+</script>
+</body>
+</html>
