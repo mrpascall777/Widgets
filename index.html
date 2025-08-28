@@ -1,22 +1,135 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Clock</title>
-    <style>
-      
-    </style>
-  </head>
-
-  <body>
-    <div class="wrap">
-      <div class="card">
-        <div class="clock" role="timer" aria-live="polite" aria-atomic="true">
-          <div class="time" id="time">--:--</div>
-          <div class="date" id="date" hidden>-</div>
-        </div>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Notion Clock with Date</title>
+  <style>
+    :root {
+      --bg: transparent;
+      --fg: #111111;
+      --font: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+      --weight: 600;
+      --shadow: 0 0 0 rgba(0,0,0,0);
+      --radius: 16px;
+      --size: 1.0;
+      --letterspace: 0.02em;
+    }
+    html, body {
+      height: 100%;
+      margin: 0;
+      background: var(--bg);
+      color: var(--fg);
+      font-family: var(--font);
+      overflow: hidden;
+    }
+    .wrap {
+      display: grid;
+      place-items: center;
+      height: 100%;
+      width: 100%;
+      padding: 6vmin;
+      box-sizing: border-box;
+    }
+    .card {
+      width: 100%;
+      height: 100%;
+      border-radius: var(--radius);
+      display: grid;
+      place-items: center;
+      text-align: center;
+      box-shadow: var(--shadow);
+    }
+    .clock {
+      line-height: 1.2;
+      display: grid;
+      gap: 0.5em;
+      align-items: center;
+      justify-items: center;
+      transform: scale(var(--size));
+    }
+    .time {
+      font-size: clamp(28px, 15vmin, 120px);
+      font-weight: var(--weight);
+      letter-spacing: var(--letterspace);
+    }
+    .date {
+      font-size: clamp(16px, 5vmin, 32px);
+      opacity: 0.9;
+      letter-spacing: 0.02em;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --fg: #f5f5f5;
+        --bg: transparent;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="card">
+      <div class="clock" role="timer" aria-live="polite" aria-atomic="true">
+        <div class="time" id="time">--:--:--</div>
+        <div class="date" id="date">—</div>
       </div>
     </div>
-  </body>
+  </div>
+
+  <script>
+    (function() {
+      const cfg = {
+        tz: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC',
+        format: '24',   // 24-hour by default
+        seconds: true,  // always show seconds
+        showDate: true  // always show date
+      };
+
+      const timeEl = document.getElementById('time');
+      const dateEl = document.getElementById('date');
+
+      // helper to add "st", "nd", "rd", "th"
+      function ordinal(n) {
+        const s = ["th", "st", "nd", "rd"];
+        const v = n % 100;
+        return s[(v - 20) % 10] || s[v] || s[0];
+      }
+
+      function fmt(now) {
+        const timeOpts = {
+          hour: '2-digit',
+          minute: '2-digit',
+          second: '2-digit',
+          hour12: (cfg.format === '12'),
+          timeZone: cfg.tz
+        };
+
+        const t = new Intl.DateTimeFormat(undefined, timeOpts).format(now);
+
+        // build custom date format
+        const weekday = new Intl.DateTimeFormat(undefined, { weekday: 'long', timeZone: cfg.tz }).format(now);
+        const day = now.getDate();
+        const month = new Intl.DateTimeFormat(undefined, { month: 'long', timeZone: cfg.tz }).format(now);
+        const year = now.getFullYear();
+        const d = `${weekday}, ${day}${ordinal(day)} ${month} ${year}`;
+
+        return { t, d };
+      }
+
+      function update() {
+        const now = new Date();
+        const { t, d } = fmt(now);
+        timeEl.textContent = t;
+        dateEl.textContent = d;
+      }
+
+      function scheduleNextTick() {
+        setTimeout(function(){ update(); scheduleNextTick(); }, 1000);
+      }
+
+      update();
+      scheduleNextTick();
+    })();
+  </script>
+</body>
 </html>
